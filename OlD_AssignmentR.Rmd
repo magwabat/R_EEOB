@@ -1,0 +1,340 @@
+---
+title: "R Assignment"
+author: "Tapiwa Magwaba"
+date: "3/5/2022"
+output: html_document
+---
+
+
+
+```{r}
+library(tidyverse) #load tidyverse in order to use readr and dplyr
+#install.packages("nanair")
+require(tidyverse)
+library(dplyr, warn.conflicts = FALSE)
+# install.packages("AGHmatrix")
+# install.packages("panda")
+library(AGHmatrix)
+library(data.table) #The input file will be uploaded faster 
+library(reshape2)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(ggplot2)
+library(arsenal)
+library(sqldf)
+library(ggpubr)
+library(Rcpp)
+library(readxl)
+library(janitor)
+```
+
+# Load data
+
+```{r}
+# Read the fang et al file
+fang_et_al_genotypes <- read.table("/Users/magwa/Desktop/ISU_1.2/Compu_546/R/fang_et_al_genotypes.txt", header = T) 
+
+#loads and renames data set
+snp_position <- read.table("/Users/magwa/Desktop/ISU_1.2/Compu_546/R/snp_position.txt", header = T, sep = "\t") 
+```
+
+## Data Inspection of fang_et_al_genotypes
+
+```{r}
+
+# get the number of rows and columns
+dim(fang_et_al_genotypes)
+dim(snp_position)
+
+# Find out data structure
+str(fang_et_al_genotypes)
+str(snp_position)
+
+# Data class
+class(fang_et_al_genotypes)
+class(snp_position)
+
+# Inspect the first and last 10 columns of the data
+head(fang_et_al_genotypes, 10)
+head(snp_position, 10)
+tail(fang_et_al_genotypes, 10)
+tail(snp_position, 10)
+
+
+# size of the file     ##########This code doesnt work, can you help out
+file.info("fang_et_al_genotypes", extra_cols = T)
+file.info("snp_position", extra_cols = T)
+```
+
+
+
+## Data Processing
+
+```{r}
+
+# Extract columns of interest "snp_position.txt" i.e `SNP_ID`, `Chromosome` and `SNP_position`
+
+trimmed_snp_position <- snp_position %>% 
+  select(1, 3,4)
+
+
+```
+  
+#### fang_et_al_genotype file
+
+##### Filter maize groups
+```{r}
+# filter 3 groups for maize
+ maize_genotypes <- filter(fang_et_al_genotypes, Group == "ZMMLR" | Group == "ZMMIL" | Group == "ZMMMR")
+head(maize_genotypes)
+# filter 3 groups for teosinte
+teosinte_genotypes <- filter(fang_et_al_genotypes, Group == "ZMPBA" | Group == "ZMPIL" | Group == "ZMPJA") #filter/sort groups
+#filter/sort groups
+
+```
+
+
+## Orient the genotype file same way as the snp position file
+```{r}
+
+# filter genotypyes only by removing #remove columns 1:3 (sample_ID: Groups)
+maize_genotypes_only <- maize_genotypes %>% 
+  select(-c(1:3))
+
+teosinte_genotypes_only <- teosinte_genotypes %>% 
+  select(-c(1:3))
+ 
+# Transpose the files
+maize_genotypes_onlyT <- t(maize_genotypes_only)
+
+teosinte_genotypes_onlyT <- t(teosinte_genotypes_only)
+```
+
+
+```{r}
+
+# join SNP pos, chromo and posi
+
+MaizeData <- cbind(trimmed_snp_position, maize_genotypes_onlyT) %>% 
+  remove_rownames()
+
+TeosiData <- cbind(trimmed_snp_position, teosinte_genotypes_onlyT) %>% 
+  remove_rownames()
+
+# sort by increasing snp pos
+
+
+```
+
+
+
+## Chromosome files 
+
+### Increasing SNP position order
+
+```{r}
+
+# Maize chromosome files
+dir.create('./MaizeFiles') # ignore it if you have created this folder when creaatin the repositry in github, 
+MaizeChrom <- filter(MaizeData, Chromosome != "unknown" & Chromosome != "multiple")
+for (i in 1:length(unique(MaizeChrom$Chromosome))){
+  Chrom <-  MaizeChrom %>% filter(Chromosome == i) %>% arrange(Position)
+  write.table(Chrom, file = paste("./MaizeFiles/MazChr_",i), quote = F, sep = "\t")
+}
+
+# Teosinte chromosome files
+dir.create('./TeosinteFiles') # ignore it if you have created this folder when creaatin the repositry in github, 
+TeoChrom <- filter(TeosiData, Chromosome != "unknown" & Chromosome != "multiple")
+for (i in 1:length(unique(TeoChrom$Chromosome))){
+  Chrom <-  TeoChrom %>% filter(Chromosome == i) %>% arrange(Position)
+  write.table(Chrom, file = paste("./TeosinteFiles/TeoChr_",i), quote = F, sep = "\t")
+}
+
+```
+
+
+### Decreasing SNP posotion order
+```{r}
+
+# Maize chromosome files with decreasing SNP positions
+MaizeDash <- as_tibble(lapply(MaizeData, gsub, pattern = "?", replacement = "-", fixed = TRUE))
+DashChr <- filter(MaizeDash, Chromosome != "unknown" & Chromosome != "multiple")
+for (i in 1:length(unique(DashChr$Chromosome))){
+  Chrom <-  DashChr %>% filter(Chromosome == i) %>% arrange(desc(Position))
+  write.table(Chrom, file = paste("./MaizeFiles/DecMazChr_",i), quote = F, sep = "\t")
+}
+
+# Teosinte chromosome files with decreasing SNP positions
+TeoDash <- as_tibble(lapply(TeosiData, gsub, pattern = "?", replacement = "-", fixed = TRUE))
+DashChr <- filter(TeoDash, Chromosome != "unknown" & Chromosome != "multiple")
+for (i in 1:length(unique(DashChr$Chromosome))){
+  Chrom <-  DashChr %>% filter(Chromosome == i) %>% arrange(desc(Position))
+  write.table(Chrom, file = paste("./TeosinteFiles/DecTeoChr_",i), quote = F, sep = "\t")
+}
+
+
+
+```
+
+
+## Data Visualization
+
+```{r}
+# A little clean up on the original SNP and genotypes files. 
+Formated_SNP <- snp_position %>% select(SNP_ID, Chromosome, Position)
+Genotypes_Transposed <- fang_et_al_genotypes %>% select(-JG_OTU, -Group) %>% column_to_rownames(., var = "Sample_ID") %>% t() %>% as.data.frame() %>% rownames_to_column(., var = "SNP_ID")
+#Merged_Genotypes <- merge(Formated_SNP, Genotypes_Transposed) %>% filter(., Chromosome != "unknown" & Chromosome != "multiple")
+# A little modification in the syntax 
+Merged_Genotypes <- merge(Formated_SNP, Genotypes_Transposed) %>% filter(., !Chromosome %in% c("unknown", "multiple"))
+```
+
+SNP DATA
+```{r Modification to TotalSNPs and Diversity}
+TotalSNPs <- 
+  ggplot(Merged_Genotypes, aes(x=as.double(Chromosome), #x=as.double(Chromosome) considers Chr as a number
+                               fill = as.factor(as.double(Chromosome)))) +  # for getting chrom in the right order in the legend   
+    geom_bar() +
+    scale_x_continuous(breaks = 1:10) + # bcs x=as.double(Chromosome), breaks by default don't match chrom number
+    theme_bw() + 
+    labs(x = "Chromosome", y = "Total number of SNPs", fill = "Chromosome") #fill = "Chromosome" only replace legend's tittle 
+DiversitySNPs <- 
+  ggplot(Merged_Genotypes, aes(x= as.numeric(Position))) + 
+  geom_density(aes(fill = as.factor(as.double(Chromosome)))) +  #same as the previous plot 
+  facet_wrap(~ as.factor(as.double(Chromosome)), nrow = 2, ncol = 5) + 
+  theme(axis.text.x=element_text(angle = 90)) +                 #change orientation of x axis
+  labs(x = "Position", y = "Density", fill = "Chromosome")
+pdf("SNP_Visualisation.pdf")
+print(TotalSNPs)
+print(DiversitySNPs)
+dev.off()
+```
+
+
+
+
+
+
+
+
+
+```{r}
+  
+arrange(snp_ID_Chr_Pos, SNP_ID) #Sort df rows in ascending order 
+  #this syntax takes column SNP_ID from file snp_ID_Chr_Pos and arranges the values from low to high
+``` 
+  
+## _Combined data sets_
+```{r}
+maize_fang_et_al_genotypes <- cbind(snp_position, maize_fang_et_al_genotypes)
+  #Combinding snp_ID_Chr_Pos with maize_fang_et_al_genotypes at the 1,1 position
+teosinte_fang_et_al_genotypes <- cbind(snp_position, teosinte_fang_et_al_genotypes)
+ #Combinding snp_ID_Chr_Pos with teosinte_fang_et_al_genotypes at the 1,1 position
+```
+
+## Data Arrangment
+
+### _Data Frame using lapply_
+```{r}
+maize_df <- data.frame(lapply(maize_fang_et_al_genotypes, as.character), stringsAsFactors=FALSE)
+teosinte_df <- data.frame(lapply(teosinte_fang_et_al_genotypes, as.character), stringsAsFactors=FALSE)
+#Syntax: We need to create a df applying the Coericion function for Character Type to the list found in maize_fang_et_al_genotypes and teonite_fang_et_all_genotypes. We also need to make sure that R prevents coercing character vectors to factors for ALL columns byt setting the argument stringsAsFactors to false.
+```
+
+### _gsub function_
+```{r}
+maize_df <- data.frame(sapply(maize_df,function(x) {x <- gsub("?","-",x,fixed=TRUE)}))
+teosinte_df <- data.frame(sapply(teosinte_df,function(x) {x <- gsub("?","-",x,fixed=TRUE)}))
+##Syntax: we are creating a function(x) that uses the gsub operation to replace all matches of a string ("?") with a different string ("-"), this function is passed through the df and the output is saved to the previous file name
+```
+## Data Processing
+
+### For maize (Group = ZMMIL, ZMMLR, and ZMMMR) and teosinte (Group = ZMPBA, ZMPIL, and ZMPJA) in the third column of the fang_et_al_genotypes.txt file) we want 40 files in total:
+
+#### 10 files (1 for each chromosome) with SNPs ordered based on increasing position values and with missing data encoded by this symbol: ? for both maize and teosinte (20 files total)
+ 
+```{r}
+for (i in 1:10) {
+  maize <- filter(maize_fang_et_al_genotypes, Chromosome == i)
+  maize <- arrange(maize, Position)
+  outpath <- "/Users/Harrisvaccines/Documents/R_Assignment/R_Assignment_Output"
+  nam <- sapply(
+    names(maize),function(x){
+                    paste("maize_in", i, ".csv", sep='')
+    })
+  out_filePath <- sapply(nam, function(x){
+                     paste(outpath, x, sep='/')})
+  write.csv(maize, file=out_filePath[i])
+} #10 of maize increase data
+for (i in 1:10) {
+  teosinte <- filter(teosinte_fang_et_al_genotypes, Chromosome == i)
+  teosinte <- arrange(teosinte, Position)
+  outpath <- "/Users/Harrisvaccines/Documents/R_Assignment/R_Assignment_Output"
+  nam <- sapply(
+    names(teosinte),function(x){
+                    paste("teosinte_in", i, ".csv", sep='')
+    })
+  out_filePath <- sapply(nam, function(x){
+                     paste(outpath, x, sep='/')})
+  write.csv(teosinte, file=out_filePath[i])
+} #10 of teosinte increase data
+#Syntax: the for loop is used to for a total of 10 iterations of a filter function for the Chromosome column on the given dataset (either the combined maize:snp_position or teosinte:snp_position). This output file is then subjected to a arrange function that will sort in ascending order using the Position column. This newly sorted output is then subjected to the previous created function(x) for missing data to be encoded by a "?" character. The final output is then written with unique file name, the species followed by a "_" using the sep= command and a indicator(in) for increasing followed by the chromosome number and finally the file extension .csv
+```
+
+### 10 files (1 for each chromosome) with SNPs ordered based on decreasing position values and with missing data encoded by this symbol: - for both maize and teosinte (20 files total)
+```{r}
+for (i in 1:10) {
+  maize <- filter(maize_df, Chromosome == i)
+  maize <- arrange(maize, desc(Position))
+  outpath <- "/Users/Harrisvaccines/Documents/R_Assignment/R_Assignment_Output"
+  nam <- sapply(
+    names(maize),function(x){
+                    paste("maize_de", i, ".csv", sep='')
+    })
+  out_filePath <- sapply(nam, function(x){
+                     paste(outpath, x, sep='/')})
+  write.csv(maize, file=out_filePath[i])
+}
+for (i in 1:10) {
+  teosinte <- filter(teosinte_df, Chromosome == i)
+  teosinte <- arrange(teosinte, desc(Position))
+  outpath <- "/Users/Harrisvaccines/Documents/R_Assignment/R_Assignment_Output"
+  nam <- sapply(
+    names(teosinte),function(x){
+                    paste("teosinte_de", i, ".csv", sep='')
+    })
+  out_filePath <- sapply(nam, function(x){
+                     paste(outpath, x, sep='/')})
+  write.csv(teosinte, file=out_filePath[i])
+}
+   #Syntax: the for loop is used to for a total of 10 iterations of a filter function  for the Chromosome column on the given dataset (either the combined maize:snp_position or teosinte:snp_position). This output file is then subjected to a arrange function with a descending argument using the Position column. This newly sorted output is then subjected to the previous created function(x) for missing data to be encoded by a "-" character. The final output is then written with unique file name, the species followed by a "_" using the sep= command and a indicator(de) for increasing followed by the chromosome number and finally the file extension .csv
+```
+## Part II: Data Visualization
+
+### _Prepare R environment_
+```{r}
+if (!require("tidyverse")) install.packages("tidyverse")
+library(tidyverse)
+if (!require("reshape2")) install.packages("reshape2")
+library(reshape2)
+```
+### _Chromosome vs. Number of SNPs_
+```{r}
+maize_fang_summarise <- summarise(group_by(maize_fang_et_al_genotypes, Chromosome), number_of_snp=n())
+view(maize_fang_summarise)
+ph=ggplot(data = maize_fang_summarise) + geom_point(mapping = aes(x=Chromosome, y=number_of_snp), colour = 'red')
+print(ph)
+ggsave(ph,filename = "maize_fang_Chr_vs_snp_plot.pdf")
+rm(ph)
+#ph is place holder
+#Now for teosnite_fang data
+teosinte_fang_summarise <- summarise(group_by(teosinte_fang_et_al_genotypes, Chromosome), number_of_snp=n())
+view(teosinte_fang_summarise)
+ph=ggplot(data = teosinte_fang_summarise) + geom_point(mapping = aes(x=Chromosome, y=number_of_snp), colour = 'green')
+print(ph)
+ggsave(ph,filename = "teosinte_fang_Chr_vs_snp_plot.pdf")
+rm(ph)
+
+
+
+
