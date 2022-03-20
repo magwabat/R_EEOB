@@ -1,0 +1,27 @@
+---
+title: "Razan-TMreview"
+author: "Razan Alsayed Omar"
+date: '2022-03-20'
+output: html_document
+---
+
+################################################################################
+Review:
+
+1. Great data inspection, nicely organized
+2. For file size, try installing this package - it will take a while:
+```{r}
+install.packages("remotes")
+remotes::install_github("skgrange/threadr")
+```
+
+This will allow you to use the following function:
+```{r}
+file_size(file, unit = "mb")
+```
+File is the file name you want to inspect, unit is the measurement unit for the file size, mb is megabytes.
+
+3. Great job on the data processing.
+4. Your code for data visualization is missing. You haven't included the code for visualizing missing data and heterozygosity or your own visualization. Please make sure to complete this as it's a huge part of the assignment is missing. I'm happy to be of help and give you some ideas. 
+5. Most importantly, your code is working just fine for me. 
+################################################################################
